@@ -16,6 +16,35 @@
     
     <!-- Custom CSS -->
     <style>
+        /* Add this to your existing CSS */
+.action-btn.refillneeded {
+    background: linear-gradient(135deg, #dc3545, #c82333);
+    color: white;
+}
+
+.action-btn.refillneeded:active {
+    transform: scale(0.98);
+    box-shadow: 0 8px 24px rgba(220, 53, 69, 0.3);
+}
+
+/* Add hover effect for desktop */
+@media (hover: hover) {
+    .action-btn.refillneeded:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 24px rgba(220, 53, 69, 0.3);
+    }
+}
+/* Add to your existing CSS */
+.modal-btn-danger {
+    background: linear-gradient(135deg, var(--danger), #d00000);
+    color: white;
+    box-shadow: 0 4px 12px rgba(239, 35, 60, 0.3);
+}
+
+.simulate-refill-modal .modal-header {
+    background: linear-gradient(135deg, #dc3545, #c82333);
+}
+
         :root {
             --primary: #4361ee;
             --primary-dark: #3a0ca3;
@@ -1524,6 +1553,13 @@
                     </div>
                     <div class="action-label">Refill</div>
                 </button>
+
+                <button class="action-btn refillneeded" onclick="simulateRefillNeeded()">
+                    <div class="action-icon">
+                        <i class="fas fa-battery-empty"></i>
+                    </div>
+                    <div class="action-label">Simulate</div>
+                </button>
             </div>
 
             <!-- Manual Movement -->
@@ -1824,6 +1860,38 @@
             </div>
         </div>
     </div>
+
+   <!-- Update the modal message in simulateRefillModal -->
+<div class="confirmation-modal simulate-refill-modal" id="simulateRefillModal">
+    <div class="modal-content">
+        <div class="modal-header" style="background: linear-gradient(135deg, #dc3545, #c82333);">
+            <div class="modal-icon">
+                <i class="fas fa-exclamation-circle"></i>
+            </div>
+            <h3 class="modal-title">Simulate Refill Needed</h3>
+            <p class="modal-subtitle">Test refill notification system</p>
+        </div>
+        <div class="modal-body">
+            <p class="modal-message">
+                This will simulate that <strong>6 out of 7 medicine compartments</strong> have been used.<br><br>
+                <strong>This is for testing purposes only.</strong><br><br>
+                The system will:
+                <ul style="text-align: left; margin: 15px 0; padding-left: 20px;">
+                    <li>Set compartments used to 6 (1 remaining)</li>
+                </ul>
+                To clear this, use the actual "Refill" button after testing.
+            </p>
+        </div>
+        <div class="modal-footer">
+            <button class="modal-btn modal-btn-secondary" onclick="closeModal('simulateRefillModal')">
+                <i class="fas fa-times"></i> Cancel
+            </button>
+            <button class="modal-btn modal-btn-danger" onclick="confirmSimulateRefill()">
+                <i class="fas fa-vial"></i> Simulate 6 Used
+            </button>
+        </div>
+    </div>
+</div>
     
     <!-- Clear All Schedules Modal -->
     <div class="confirmation-modal clear-schedules-modal" id="clearSchedulesModal">
@@ -2578,6 +2646,60 @@
                     console.error(`Refill error: ${error.message}`);
                 });
         }
+
+
+        // Update the simulateRefillNeeded function to show modal instead
+function simulateRefillNeeded() {
+    showModal('simulateRefillModal');
+}
+
+// Update the confirmSimulateRefill function
+function confirmSimulateRefill() {
+    if (!isConnected) {
+        showToast('Not connected', 'error');
+        closeModal('simulateRefillModal');
+        return;
+    }
+    
+    const timestamp = Date.now();
+    
+    const updates = {};
+    updates[getCommandPath()] = 'simulate_refill';
+    updates[getCommandTimestampPath()] = timestamp;
+    
+    // Also update the used compartments count to 6 (instead of 7)
+    updates[getRefillPath("used_count")] = 6;
+    updates[getRefillPath("remaining")] = 1; // Only 1 remaining
+    
+    database.ref().update(updates)
+        .then(() => {
+            showToast('Simulated: 6 compartments used', 'success');
+            console.log('Simulated refill needed - 6 compartments used');
+            
+            // Update local state for immediate feedback
+            usedCompartments = 6;
+            refillNeeded = true; // Still set refill needed since it's almost empty
+            updateRefillDisplay();
+            
+            // Clear command after sending
+            setTimeout(() => {
+                if (isConnected) {
+                    const clearUpdates = {};
+                    clearUpdates[getCommandPath()] = "idle";
+                    clearUpdates[getCommandTimestampPath()] = 0;
+                    
+                    database.ref().update(clearUpdates);
+                }
+            }, 1000);
+            
+            closeModal('simulateRefillModal');
+        })
+        .catch((error) => {
+            showToast('Failed to simulate refill needed', 'error');
+            console.error(`Simulate refill error: ${error.message}`);
+            closeModal('simulateRefillModal');
+        });
+}
 
         // Manual movement for calibration
         function manualMove(steps) {
